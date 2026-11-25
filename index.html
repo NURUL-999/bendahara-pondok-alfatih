@@ -15,7 +15,26 @@
   <!-- jsPDF & AutoTable for PDF Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .fade-in {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .nav-item.active {
+      background-color: #059669;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+    }
+    .modal-open {
+      display: flex !important;
+    }
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-600 selection:text-white">
 
@@ -201,7 +220,7 @@
        2. MAIN APPLICATION DASHBOARD
        ===================================================================== -->
   <div id="app-wrapper" class="hidden min-h-screen flex flex-col lg:flex-row">
-    <!-- Mobile Top Bar (Dengan Tombol Logout Langsung) -->
+    <!-- Mobile Top Bar -->
     <header class="lg:hidden bg-emerald-950 text-white px-4 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-md">
       <div class="flex items-center gap-2.5">
         <div class="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center">
@@ -303,7 +322,7 @@
     <!-- Main Content Area -->
     <main class="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
 
-      <!-- Top Header Bar Desktop (Dengan Tombol Logout yang Selalu Terlihat) -->
+      <!-- Top Header Bar Desktop -->
       <div class="hidden lg:flex items-center justify-between mb-6 bg-white px-6 py-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div class="flex items-center gap-2 text-xs font-semibold text-slate-500">
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -446,7 +465,7 @@
             </div>
           </div>
 
-          <!-- Bulk Delete Action Bar (Visible when Select Mode is Active) -->
+          <!-- Bulk Delete Action Bar -->
           <div id="multi-delete-bar" class="hidden bg-rose-50 border border-rose-200 px-5 py-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
               <span id="selected-santri-count" class="text-sm font-extrabold text-rose-800">0 santri dipilih</span>
@@ -471,7 +490,7 @@
           <div id="santri-directory-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
 
-        <!-- View 2B: Form Tambah Data Transaksi Santri (Tanpa Kolom Input Nama) -->
+        <!-- View 2B: Form Tambah Data Transaksi Santri -->
         <div id="daftar-santri-form-view" class="hidden max-w-2xl mx-auto">
           <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm">
             <div class="flex items-center justify-between pb-5 mb-6 border-b border-slate-100">
@@ -545,7 +564,6 @@
            SECTION 3: HASIL LAPORAN
            ================================================================= -->
       <section id="section-hasil-laporan" class="hidden fade-in space-y-6">
-        <!-- Filter & Export Header -->
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-5">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -629,7 +647,7 @@
       </section>
 
       <!-- =================================================================
-           SECTION 4: KELOLA AKUN (ADMIN ONLY - HANYA FORM BUAT AKUN)
+           SECTION 4: KELOLA AKUN (ADMIN ONLY)
            ================================================================= -->
       <section id="section-kelola-akun" class="hidden fade-in space-y-6">
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
@@ -640,7 +658,6 @@
         </div>
 
         <div class="max-w-xl mx-auto">
-          <!-- Form Buat Akun oleh Admin -->
           <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm">
             <h3 class="text-base font-extrabold text-slate-900 mb-5 flex items-center gap-2">
               <i data-lucide="user-plus" class="w-5 h-5 text-emerald-700"></i>
@@ -687,7 +704,7 @@
       </section>
 
       <!-- =================================================================
-           SECTION 5: PROFIL SAYA (WALI: PP + BIO + ALAMAT + NO HP | ADMIN: PP ONLY)
+           SECTION 5: PROFIL SAYA
            ================================================================= -->
       <section id="section-profil" class="hidden fade-in space-y-6">
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
@@ -708,7 +725,7 @@
               <h3 id="profil-display-name" class="text-lg font-extrabold text-slate-900 mt-3.5">Nama Pengguna</h3>
               <p id="profil-display-username" class="text-xs font-semibold text-slate-500">@username</p>
 
-              <!-- Hidden File Inputs for Album & Mobile Camera Fallback -->
+              <!-- Hidden File Inputs -->
               <input type="file" id="profil-file-album" accept="image/*" class="hidden" onchange="handleProfileImageFileChange(event)" />
               <input type="file" id="profil-file-camera" accept="image/*" capture="user" class="hidden" onchange="handleProfileImageFileChange(event)" />
 
@@ -731,7 +748,7 @@
               </div>
             </div>
 
-            <!-- Form Profil (Wali memiliki Bio, Alamat, No HP; Admin hanya Foto Profil) -->
+            <!-- Form Profil -->
             <form id="profil-form" class="space-y-4" onsubmit="handleSaveProfile(event)">
               <div id="wali-profile-fields" class="space-y-4">
                 <div>
@@ -780,7 +797,7 @@
   </div>
 
   <!-- =====================================================================
-       MODAL 1: CEK PROFIL SANTRI & WALI (DARI MENU TITIK TIGA DI DAFTAR SANTRI)
+       MODAL 1: CEK PROFIL SANTRI & WALI
        ===================================================================== -->
   <div id="santri-profile-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
     <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 fade-in my-auto">
