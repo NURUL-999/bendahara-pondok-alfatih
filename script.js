@@ -11,7 +11,13 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_USERS = [
-  { username: 'riski_123', password: 'password123', fullName: 'Riski', role: 'admin' }
+  {
+    username: 'riski_123',
+    password: 'password123',
+    fullName: 'Riski',
+    role: 'admin',
+    avatar: ''
+  }
 ];
 
 const DEFAULT_SANTRI = [];
@@ -29,6 +35,8 @@ let activeFormSantriName = '';
 let isSantriSelectMode = false;
 let selectedSantriForDelete = new Set();
 let openSantriMenuName = null;
+let selfieStream = null;
+let pendingAvatarDataUrl = '';
 
 // Safe HTML & Attribute Escaping
 function escapeHtml(str) {
@@ -110,6 +118,15 @@ function loadAppData() {
       } catch (e) {}
     });
 
+    // Ensure every user object has normalized profile fields
+    registeredUsers = registeredUsers.map((u) => ({
+      avatar: '',
+      bio: '',
+      alamat: '',
+      noHp: '',
+      ...u
+    }));
+
     saveAppData();
   } catch (e) {
     registeredUsers = [...DEFAULT_USERS];
@@ -124,7 +141,8 @@ function saveAppData() {
     localStorage.setItem(STORAGE_KEYS.SANTRI, JSON.stringify(santriDirectory));
     localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(reportItems));
   } catch (e) {
-    console.warn('LocalStorage tidak tersedia:', e);
+    console.warn('LocalStorage penuh atau tidak tersedia:', e);
+    showToast('Penyimpanan browser penuh. Gunakan foto dengan ukuran lebih kecil.', 'error');
   }
 }
 
@@ -174,6 +192,15 @@ function togglePasswordVisibility(inputId, btn) {
   input.type = isPass ? 'text' : 'password';
   btn.innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
   if (window.lucide) lucide.createIcons();
+}
+
+function renderAvatarElement(el, avatarUrl, fallbackName) {
+  if (!el) return;
+  if (avatarUrl && avatarUrl.startsWith('data:image/')) {
+    el.innerHTML = `<img src="${avatarUrl}" alt="${escapeHtml(fallbackName)}" class="w-full h-full object-cover" />`;
+  } else {
+    el.textContent = (fallbackName || 'U').charAt(0).toUpperCase();
+  }
 }
 
 // 4. AUTHENTICATION (LOGIN, CREATE ACCOUNT, RESET PASSWORD, DEMO)
@@ -270,7 +297,16 @@ function handleRegister(event) {
     return;
   }
 
-  const newUser = { username, password, fullName, role };
+  const newUser = {
+    username,
+    password,
+    fullName,
+    role,
+    avatar: '',
+    bio: '',
+    alamat: '',
+    noHp: ''
+  };
   registeredUsers.push(newUser);
 
   if (role === 'user') {
@@ -333,7 +369,8 @@ function loginDemo() {
     username: 'demo_admin#1',
     fullName: 'Pengunjung Demo',
     role: 'admin',
-    isDemo: true
+    isDemo: true,
+    avatar: ''
   };
   localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(currentUser));
   showToast('Masuk dalam Mode Demo (Akses Penuh Cek Aplikasi).', 'info');
@@ -341,6 +378,7 @@ function loginDemo() {
 }
 
 function handleLogout() {
+  closeSelfieCameraModal();
   currentUser = null;
   localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
   document.getElementById('app-wrapper').classList.add('hidden');
@@ -351,13 +389,14 @@ function handleLogout() {
 }
 
 // 5. DASHBOARD & ROLE ACCESS CONTROL
-function enterDashboard() {
-  document.getElementById('auth-wrapper').classList.add('hidden');
-  document.getElementById('app-wrapper').classList.remove('hidden');
-
+function updateSidebarUserBadge() {
+  if (!currentUser) return;
   const isAdmin = currentUser.role === 'admin';
-
-  document.getElementById('sidebar-avatar').textContent = currentUser.fullName.charAt(0).toUpperCase();
+  renderAvatarElement(
+    document.getElementById('sidebar-avatar'),
+    currentUser.avatar,
+    currentUser.fullName
+  );
   document.getElementById('sidebar-user-name').textContent = currentUser.fullName;
   document.getElementById('sidebar-user-role').textContent = currentUser.isDemo
     ? 'Mode Demo (Admin)'
@@ -365,6 +404,14 @@ function enterDashboard() {
     ? 'Admin Bendahara'
     : 'Wali Santri';
   document.getElementById('mobile-role-subtitle').textContent = isAdmin ? 'Admin Bendahara' : 'Wali Santri';
+}
+
+function enterDashboard() {
+  document.getElementById('auth-wrapper').classList.add('hidden');
+  document.getElementById('app-wrapper').classList.remove('hidden');
+
+  const isAdmin = currentUser.role === 'admin';
+  updateSidebarUserBadge();
 
   const navDaftarSantri = document.getElementById('nav-daftar-santri');
   const navKelolaAkun = document.getElementById('nav-kelola-akun');
@@ -437,6 +484,7 @@ function navigateTo(sectionName) {
   document.getElementById('section-daftar-santri').classList.add('hidden');
   document.getElementById('section-hasil-laporan').classList.add('hidden');
   document.getElementById('section-kelola-akun').classList.add('hidden');
+  document.getElementById('section-profil').classList.add('hidden');
 
   document.getElementById(`section-${sectionName}`).classList.remove('hidden');
 
@@ -452,6 +500,8 @@ function navigateTo(sectionName) {
     renderSantriDirectory();
   } else if (sectionName === 'hasil-laporan') {
     renderHasilLaporanSection();
+  } else if (sectionName === 'profil') {
+    renderProfilSection();
   }
 
   if (window.lucide) lucide.createIcons();
@@ -504,6 +554,15 @@ function renderBeranda() {
 }
 
 // 7. DAFTAR SANTRI & INPUT DATA (ADMIN)
+function findAccountForSantri(nama) {
+  return registeredUsers.find(
+    (u) =>
+      u.role === 'user' &&
+      (u.fullName.toLowerCase() === nama.toLowerCase() ||
+        u.username.toLowerCase().startsWith(nama.toLowerCase().split(' ')[0]))
+  );
+}
+
 function renderSantriDirectory() {
   const grid = document.getElementById('santri-directory-grid');
 
@@ -523,6 +582,12 @@ function renderSantriDirectory() {
       const keluar = santriReports.reduce((s, r) => s + r.keluar, 0);
       const saldo = masuk - keluar;
 
+      const matchedAccount = findAccountForSantri(nama);
+      const avatarHtml =
+        matchedAccount && matchedAccount.avatar && matchedAccount.avatar.startsWith('data:image/')
+          ? `<img src="${matchedAccount.avatar}" alt="${escapeHtml(nama)}" class="w-full h-full object-cover" />`
+          : escapeHtml(nama.charAt(0).toUpperCase());
+
       const isChecked = selectedSantriForDelete.has(nama);
       const isMenuOpen = openSantriMenuName === nama;
 
@@ -538,8 +603,8 @@ function renderSantriDirectory() {
                 isSantriSelectMode
                   ? `<input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelectSingleSantriByIndex(${idx})"
                       class="w-5 h-5 rounded-md accent-rose-600 cursor-pointer shrink-0" />`
-                  : `<div class="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-800 group-hover:bg-emerald-700 group-hover:text-white font-extrabold text-base flex items-center justify-center transition shrink-0">
-                      ${escapeHtml(nama.charAt(0).toUpperCase())}
+                  : `<div class="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-800 group-hover:bg-emerald-700 group-hover:text-white font-extrabold text-base flex items-center justify-center transition shrink-0 overflow-hidden">
+                      ${avatarHtml}
                     </div>`
               }
               <div class="min-w-0">
@@ -706,18 +771,14 @@ function confirmSingleDeleteSantriByIndex(idx) {
   );
 }
 
-// Cek Profil Modal
+// Cek Profil Modal (Menampilkan Data Profil yang Diisi oleh Wali ke Admin)
 function openSantriProfileModalByIndex(idx) {
   const nama = santriDirectory[idx];
   if (!nama) return;
   openSantriMenuName = null;
   renderSantriDirectory();
 
-  const matchedAccount = registeredUsers.find(
-    (u) =>
-      u.fullName.toLowerCase() === nama.toLowerCase() ||
-      u.username.toLowerCase().startsWith(nama.toLowerCase().split(' ')[0])
-  );
+  const matchedAccount = findAccountForSantri(nama);
 
   const generatedUsername = matchedAccount
     ? matchedAccount.username
@@ -728,10 +789,21 @@ function openSantriProfileModalByIndex(idx) {
   const keluar = santriReports.reduce((s, r) => s + r.keluar, 0);
   const saldo = masuk - keluar;
 
-  document.getElementById('profile-modal-avatar').textContent = nama.charAt(0).toUpperCase();
+  renderAvatarElement(
+    document.getElementById('profile-modal-avatar'),
+    matchedAccount?.avatar || '',
+    nama
+  );
   document.getElementById('profile-modal-title').textContent = nama;
   document.getElementById('profile-modal-fullname').textContent = matchedAccount ? matchedAccount.fullName : nama;
   document.getElementById('profile-modal-username').textContent = generatedUsername;
+  document.getElementById('profile-modal-nohp').textContent =
+    matchedAccount && matchedAccount.noHp ? matchedAccount.noHp : 'Belum diisi wali';
+  document.getElementById('profile-modal-alamat').textContent =
+    matchedAccount && matchedAccount.alamat ? matchedAccount.alamat : 'Belum diisi wali';
+  document.getElementById('profile-modal-bio').textContent =
+    matchedAccount && matchedAccount.bio ? matchedAccount.bio : 'Belum diisi wali';
+
   document.getElementById('profile-modal-masuk').textContent = formatRupiah(masuk);
   document.getElementById('profile-modal-keluar').textContent = formatRupiah(keluar);
   document.getElementById('profile-modal-saldo').textContent = formatRupiah(saldo);
@@ -993,7 +1065,16 @@ function handleAdminCreateUser(event) {
     return;
   }
 
-  const createdUser = { username, password, fullName, role };
+  const createdUser = {
+    username,
+    password,
+    fullName,
+    role,
+    avatar: '',
+    bio: '',
+    alamat: '',
+    noHp: ''
+  };
   registeredUsers.push(createdUser);
 
   if (role === 'user') {
@@ -1008,6 +1089,236 @@ function handleAdminCreateUser(event) {
   saveAppData();
   document.getElementById('admin-create-user-form').reset();
   showToast(`Akun "${username}" untuk ${fullName} berhasil dibuat!`, 'success');
+}
+
+// 10. PROFIL SAYA (WALI: PP + BIO + ALAMAT + NO HP | ADMIN: PP ONLY)
+function renderProfilSection() {
+  if (!currentUser) return;
+  const isAdmin = currentUser.role === 'admin';
+
+  pendingAvatarDataUrl = currentUser.avatar || '';
+  updateProfileAvatarPreview();
+
+  document.getElementById('profil-display-name').textContent = currentUser.fullName;
+  document.getElementById('profil-display-username').textContent = `@${currentUser.username}`;
+
+  const waliFields = document.getElementById('wali-profile-fields');
+  const adminNote = document.getElementById('admin-profile-note');
+  const saveBtnWrapper = document.getElementById('profil-save-btn-wrapper');
+  const subtitle = document.getElementById('profil-section-subtitle');
+
+  if (isAdmin) {
+    subtitle.textContent = 'Atur foto profil (PP) akun Admin Bendahara Anda.';
+    waliFields.classList.add('hidden');
+    adminNote.classList.remove('hidden');
+    saveBtnWrapper.classList.add('hidden');
+  } else {
+    subtitle.textContent = 'Lengkapi foto profil, bio, alamat, dan nomor HP agar dapat dilihat oleh Admin.';
+    waliFields.classList.remove('hidden');
+    adminNote.classList.add('hidden');
+    saveBtnWrapper.classList.remove('hidden');
+
+    document.getElementById('profil-bio').value = currentUser.bio || '';
+    document.getElementById('profil-alamat').value = currentUser.alamat || '';
+    document.getElementById('profil-nohp').value = currentUser.noHp || '';
+  }
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function updateProfileAvatarPreview() {
+  const previewEl = document.getElementById('profil-avatar-preview');
+  const removeBtn = document.getElementById('btn-remove-avatar');
+  renderAvatarElement(previewEl, pendingAvatarDataUrl, currentUser?.fullName || 'U');
+
+  if (pendingAvatarDataUrl && pendingAvatarDataUrl.startsWith('data:image/')) {
+    removeBtn.classList.remove('hidden');
+  } else {
+    removeBtn.classList.add('hidden');
+  }
+}
+
+function triggerAlbumUpload() {
+  const input = document.getElementById('profil-file-album');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+function handleProfileImageFileChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('File harus berupa gambar (JPG, PNG, WebP).', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    compressImageDataUrl(e.target.result, 320, 0.82, (compressedDataUrl) => {
+      applyNewProfileAvatar(compressedDataUrl);
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function compressImageDataUrl(dataUrl, maxDimension, quality, callback) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    let width = img.width;
+    let height = img.height;
+
+    if (width > height) {
+      if (width > maxDimension) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      }
+    } else {
+      if (height > maxDimension) {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
+}
+
+function applyNewProfileAvatar(dataUrl) {
+  pendingAvatarDataUrl = dataUrl;
+  updateProfileAvatarPreview();
+
+  // Persist avatar immediately so both Admin (PP-only) & Wali see instant update
+  if (currentUser) {
+    currentUser.avatar = dataUrl;
+    syncCurrentUserToStorage();
+    updateSidebarUserBadge();
+    showToast('Foto profil berhasil diperbarui!', 'success');
+  }
+}
+
+function removeProfileAvatar() {
+  pendingAvatarDataUrl = '';
+  updateProfileAvatarPreview();
+
+  if (currentUser) {
+    currentUser.avatar = '';
+    syncCurrentUserToStorage();
+    updateSidebarUserBadge();
+    showToast('Foto profil dihapus.', 'info');
+  }
+}
+
+function syncCurrentUserToStorage() {
+  if (!currentUser) return;
+  const idx = registeredUsers.findIndex(
+    (u) => u.username.toLowerCase() === currentUser.username.toLowerCase()
+  );
+  if (idx !== -1) {
+    registeredUsers[idx] = { ...registeredUsers[idx], ...currentUser };
+    saveAppData();
+  }
+  if (localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION)) {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(currentUser));
+  }
+}
+
+function handleSaveProfile(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+
+  if (currentUser.role !== 'admin') {
+    currentUser.bio = document.getElementById('profil-bio').value.trim();
+    currentUser.alamat = document.getElementById('profil-alamat').value.trim();
+    currentUser.noHp = document.getElementById('profil-nohp').value.trim();
+  }
+  currentUser.avatar = pendingAvatarDataUrl;
+
+  syncCurrentUserToStorage();
+  updateSidebarUserBadge();
+  showToast('Profil berhasil disimpan dan dapat dilihat oleh Admin!', 'success');
+}
+
+// Selfie Webcam Modal
+async function openSelfieCameraModal() {
+  const modal = document.getElementById('selfie-camera-modal');
+  const video = document.getElementById('selfie-video');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    // Fallback to native mobile camera file picker
+    const camInput = document.getElementById('profil-file-camera');
+    if (camInput) {
+      camInput.value = '';
+      camInput.click();
+    }
+    return;
+  }
+
+  try {
+    selfieStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
+      audio: false
+    });
+    video.srcObject = selfieStream;
+    modal.classList.remove('hidden');
+    modal.classList.add('modal-open');
+    if (window.lucide) lucide.createIcons();
+  } catch (err) {
+    // If browser blocks webcam or no webcam on desktop, fallback to file input with capture
+    const camInput = document.getElementById('profil-file-camera');
+    if (camInput) {
+      camInput.value = '';
+      camInput.click();
+    } else {
+      showToast('Kamera tidak tersedia atau izin ditolak.', 'error');
+    }
+  }
+}
+
+function closeSelfieCameraModal() {
+  if (selfieStream) {
+    selfieStream.getTracks().forEach((track) => track.stop());
+    selfieStream = null;
+  }
+  const video = document.getElementById('selfie-video');
+  if (video) video.srcObject = null;
+
+  const modal = document.getElementById('selfie-camera-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('modal-open');
+  }
+}
+
+function captureSelfieSnapshot() {
+  const video = document.getElementById('selfie-video');
+  const canvas = document.getElementById('selfie-canvas');
+  if (!video || !canvas || !video.videoWidth) return;
+
+  const size = Math.min(video.videoWidth, video.videoHeight);
+  const startX = (video.videoWidth - size) / 2;
+  const startY = (video.videoHeight - size) / 2;
+
+  canvas.width = 320;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+
+  // Mirror horizontally to match selfie preview
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, startX, startY, size, size, 0, 0, 320, 320);
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  closeSelfieCameraModal();
+  applyNewProfileAvatar(dataUrl);
 }
 
 // Edit & Delete Record (Admin)
@@ -1107,7 +1418,7 @@ function closeConfirmDeleteModal() {
   modal.classList.remove('modal-open');
 }
 
-// 10. EXPORT EXCEL & EXPORT PDF
+// 11. EXPORT EXCEL & EXPORT PDF
 function getExportFilename(extension) {
   if (currentUser && currentUser.role !== 'admin') {
     const cleanName = currentUser.fullName.trim().replace(/[\\/:*?"<>|]/g, '_');
@@ -1234,3 +1545,4 @@ function exportToPDF() {
   doc.save(getExportFilename('pdf'));
   showToast('File PDF berhasil diunduh.', 'success');
 }
+```[cite: 23, 24]
