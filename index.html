@@ -241,17 +241,19 @@
           </div>
         </div>
 
-        <!-- Active User Badge -->
-        <div class="mx-4 mt-5 p-3.5 rounded-2xl bg-emerald-900/60 border border-emerald-800/70 flex items-center gap-3">
-          <div id="sidebar-avatar" class="w-10 h-10 rounded-xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-sm shrink-0">
+        <!-- Active User Badge (Clickable to Profile) -->
+        <div onclick="navigateTo('profil')" title="Buka Profil Saya"
+          class="mx-4 mt-5 p-3.5 rounded-2xl bg-emerald-900/60 hover:bg-emerald-900 border border-emerald-800/70 flex items-center gap-3 cursor-pointer transition">
+          <div id="sidebar-avatar" class="w-11 h-11 rounded-xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-sm shrink-0 overflow-hidden border border-emerald-500/40">
             A
           </div>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <p id="sidebar-user-name" class="text-sm font-bold text-white truncate">Nama Pengguna</p>
             <span id="sidebar-user-role" class="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 mt-0.5">
               Admin
             </span>
           </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-emerald-400 shrink-0"></i>
         </div>
 
         <!-- Menu Items -->
@@ -278,6 +280,12 @@
             class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white transition">
             <i data-lucide="user-cog" class="w-5 h-5"></i>
             <span>Kelola Akun</span>
+          </button>
+
+          <button type="button" onclick="navigateTo('profil')" id="nav-profil"
+            class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white transition">
+            <i data-lucide="user-circle" class="w-5 h-5"></i>
+            <span>Profil Saya</span>
           </button>
         </nav>
       </div>
@@ -414,7 +422,7 @@
             <div>
               <h2 class="text-xl font-extrabold text-slate-900">Daftar Santri</h2>
               <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Klik nama santri untuk menambahkan catatan keuangan, atau klik ikon titik tiga untuk cek profil &amp; hapus.
+                Klik nama santri untuk menambahkan catatan keuangan, atau klik ikon titik tiga untuk cek profil wali &amp; hapus.
               </p>
             </div>
 
@@ -677,22 +685,113 @@
           </div>
         </div>
       </section>
+
+      <!-- =================================================================
+           SECTION 5: PROFIL SAYA (WALI: PP + BIO + ALAMAT + NO HP | ADMIN: PP ONLY)
+           ================================================================= -->
+      <section id="section-profil" class="hidden fade-in space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
+          <h2 class="text-xl font-extrabold text-slate-900">Profil Saya</h2>
+          <p id="profil-section-subtitle" class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Kelola foto profil dan informasi akun Anda.
+          </p>
+        </div>
+
+        <div class="max-w-2xl mx-auto">
+          <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm">
+            <!-- Avatar & Upload / Selfie Controls -->
+            <div class="flex flex-col items-center text-center pb-6 mb-6 border-b border-slate-100">
+              <div id="profil-avatar-preview"
+                class="w-28 h-28 rounded-3xl bg-emerald-700 text-white font-extrabold text-3xl flex items-center justify-center shadow-lg overflow-hidden border-4 border-emerald-50">
+                U
+              </div>
+              <h3 id="profil-display-name" class="text-lg font-extrabold text-slate-900 mt-3.5">Nama Pengguna</h3>
+              <p id="profil-display-username" class="text-xs font-semibold text-slate-500">@username</p>
+
+              <!-- Hidden File Inputs for Album & Mobile Camera Fallback -->
+              <input type="file" id="profil-file-album" accept="image/*" class="hidden" onchange="handleProfileImageFileChange(event)" />
+              <input type="file" id="profil-file-camera" accept="image/*" capture="user" class="hidden" onchange="handleProfileImageFileChange(event)" />
+
+              <div class="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                <button type="button" onclick="triggerAlbumUpload()"
+                  class="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition flex items-center gap-1.5">
+                  <i data-lucide="image" class="w-4 h-4 text-emerald-700"></i>
+                  <span>Pilih dari Album</span>
+                </button>
+                <button type="button" onclick="openSelfieCameraModal()"
+                  class="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs transition flex items-center gap-1.5">
+                  <i data-lucide="camera" class="w-4 h-4 text-amber-700"></i>
+                  <span>Ambil Selfie</span>
+                </button>
+                <button type="button" id="btn-remove-avatar" onclick="removeProfileAvatar()"
+                  class="hidden px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition flex items-center gap-1.5">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  <span>Hapus Foto</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Form Profil (Wali memiliki Bio, Alamat, No HP; Admin hanya Foto Profil) -->
+            <form id="profil-form" class="space-y-4" onsubmit="handleSaveProfile(event)">
+              <div id="wali-profile-fields" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Bio / Catatan Wali</label>
+                  <textarea id="profil-bio" rows="2" placeholder="Contoh: Wali dari ananda Ahmad Fauzi..."
+                    class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-600 outline-none text-sm font-medium"></textarea>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Alamat Lengkap</label>
+                  <textarea id="profil-alamat" rows="2" placeholder="Contoh: Jl. Merdeka No. 12, Kec. Purwokerto..."
+                    class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-600 outline-none text-sm font-medium"></textarea>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Nomor HP / WhatsApp</label>
+                  <div class="relative">
+                    <i data-lucide="phone" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input type="tel" id="profil-nohp" placeholder="Contoh: 081234567890"
+                      class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-600 outline-none text-sm font-medium" />
+                  </div>
+                </div>
+
+                <div class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex items-start gap-2.5 text-xs text-emerald-900">
+                  <i data-lucide="eye" class="w-4 h-4 text-emerald-700 shrink-0 mt-0.5"></i>
+                  <span>Informasi foto profil, bio, alamat, dan nomor HP yang Anda simpan akan dapat dilihat oleh Admin Bendahara.</span>
+                </div>
+              </div>
+
+              <div id="admin-profile-note" class="hidden p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 text-center">
+                Profil Admin hanya menampilkan foto profil (PP). Gunakan tombol di atas untuk mengganti atau menghapus foto profil Anda.
+              </div>
+
+              <div id="profil-save-btn-wrapper" class="pt-2">
+                <button type="submit"
+                  class="w-full py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-lg shadow-emerald-700/20 transition flex items-center justify-center gap-2">
+                  <i data-lucide="save" class="w-4 h-4"></i>
+                  <span>Simpan Perubahan Profil</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
   <!-- =====================================================================
-       MODAL 1: CEK PROFIL SANTRI (DARI MENU TITIK TIGA DI DAFTAR SANTRI)
+       MODAL 1: CEK PROFIL SANTRI & WALI (DARI MENU TITIK TIGA DI DAFTAR SANTRI)
        ===================================================================== -->
-  <div id="santri-profile-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 fade-in">
+  <div id="santri-profile-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 fade-in my-auto">
       <div class="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
         <div class="flex items-center gap-3">
-          <div id="profile-modal-avatar" class="w-12 h-12 rounded-2xl bg-emerald-700 text-white font-extrabold text-lg flex items-center justify-center">
+          <div id="profile-modal-avatar" class="w-14 h-14 rounded-2xl bg-emerald-700 text-white font-extrabold text-lg flex items-center justify-center overflow-hidden shrink-0 border border-emerald-100">
             S
           </div>
           <div>
             <h3 id="profile-modal-title" class="text-lg font-extrabold text-slate-900">Profil Santri</h3>
-            <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">Informasi Akun &amp; Saldo</span>
+            <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">Informasi Wali &amp; Saldo</span>
           </div>
         </div>
         <button type="button" onclick="closeSantriProfileModal()" class="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
@@ -700,15 +799,30 @@
         </button>
       </div>
 
-      <div class="space-y-3.5 text-sm">
-        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-          <span class="text-slate-500 font-semibold">Nama Lengkap</span>
-          <span id="profile-modal-fullname" class="font-extrabold text-slate-900">-</span>
+      <div class="space-y-3 text-sm">
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3">
+          <span class="text-slate-500 font-semibold shrink-0">Nama Lengkap</span>
+          <span id="profile-modal-fullname" class="font-extrabold text-slate-900 text-right">-</span>
         </div>
 
-        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-          <span class="text-slate-500 font-semibold">Username Akun</span>
-          <span id="profile-modal-username" class="font-bold text-emerald-700">-</span>
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3">
+          <span class="text-slate-500 font-semibold shrink-0">Username Akun</span>
+          <span id="profile-modal-username" class="font-bold text-emerald-700 text-right">-</span>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3">
+          <span class="text-slate-500 font-semibold shrink-0">Nomor HP</span>
+          <span id="profile-modal-nohp" class="font-bold text-slate-800 text-right">-</span>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400 block">Alamat</span>
+          <p id="profile-modal-alamat" class="font-medium text-slate-800 text-xs sm:text-sm leading-relaxed">-</p>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400 block">Bio Wali</span>
+          <p id="profile-modal-bio" class="font-medium text-slate-700 text-xs sm:text-sm leading-relaxed">-</p>
         </div>
 
         <div class="grid grid-cols-2 gap-3 pt-1">
@@ -728,7 +842,7 @@
         </div>
       </div>
 
-      <div class="mt-6">
+      <div class="mt-5">
         <button type="button" onclick="closeSantriProfileModal()"
           class="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm transition">
           Tutup Profil
@@ -818,6 +932,44 @@
         <button type="button" id="btn-confirm-delete-yes"
           class="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-md">
           Ya, Hapus
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 4: KAMERA SELFIE FOTO PROFIL
+       ===================================================================== -->
+  <div id="selfie-camera-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 fade-in">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <i data-lucide="camera" class="w-5 h-5 text-emerald-700"></i>
+          <h3 class="text-base font-extrabold text-slate-900">Ambil Foto Selfie</h3>
+        </div>
+        <button type="button" onclick="closeSelfieCameraModal()" class="p-2 rounded-xl text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="relative rounded-2xl overflow-hidden bg-slate-900 aspect-square flex items-center justify-center">
+        <video id="selfie-video" autoplay playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
+        <canvas id="selfie-canvas" class="hidden"></canvas>
+      </div>
+
+      <p class="text-[11px] text-slate-500 text-center mt-3">
+        Pastikan wajah terlihat jelas di dalam bingkai sebelum mengambil foto.
+      </p>
+
+      <div class="mt-4 grid grid-cols-2 gap-2.5">
+        <button type="button" onclick="closeSelfieCameraModal()"
+          class="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50">
+          Batal
+        </button>
+        <button type="button" onclick="captureSelfieSnapshot()"
+          class="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2">
+          <i data-lucide="aperture" class="w-4 h-4"></i>
+          <span>Jepret Foto</span>
         </button>
       </div>
     </div>
