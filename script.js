@@ -2,7 +2,7 @@
    Alfatih - Bendahara | Application Logic
    ========================================================================== */
 
-// 1. INITIAL DATA & LOCAL STORAGE KEYS (PERMANENT ACCOUNT STORAGE, SECURE LOGOUT)
+// 1. INITIAL DATA & LOCAL STORAGE KEYS
 const STORAGE_KEYS = {
   USERS: 'alfatih_bendahara_users_permanent',
   SANTRI: 'alfatih_bendahara_santri_v3',
@@ -86,7 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function loadAppData() {
   try {
-    // Clean up any legacy quick-login device account list for privacy/security
     localStorage.removeItem('alfatih_bendahara_device_saved_accounts');
 
     const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
@@ -97,7 +96,6 @@ function loadAppData() {
     santriDirectory = storedSantri ? JSON.parse(storedSantri) : [...DEFAULT_SANTRI];
     reportItems = storedReports ? JSON.parse(storedReports) : [...DEFAULT_REPORTS];
 
-    // Migrate any user accounts from previous storage versions so no created account is ever lost
     ['alfatih_bendahara_users_v2', 'alfatih_bendahara_users_v3'].forEach((legacyKey) => {
       try {
         const legacyRaw = localStorage.getItem(legacyKey);
@@ -118,7 +116,6 @@ function loadAppData() {
       } catch (e) {}
     });
 
-    // Ensure every user object has normalized profile fields
     registeredUsers = registeredUsers.map((u) => ({
       avatar: '',
       bio: '',
@@ -771,7 +768,7 @@ function confirmSingleDeleteSantriByIndex(idx) {
   );
 }
 
-// Cek Profil Modal (Menampilkan Data Profil yang Diisi oleh Wali ke Admin)
+// Cek Profil Modal
 function openSantriProfileModalByIndex(idx) {
   const nama = santriDirectory[idx];
   if (!nama) return;
@@ -820,7 +817,7 @@ function closeSantriProfileModal() {
   modal.classList.remove('modal-open');
 }
 
-// Form Tambah Data (Tanpa Kolom Nama)
+// Form Tambah Data
 function openTambahDataFormForSantri(nama) {
   activeFormSantriName = nama;
   document.getElementById('daftar-santri-list-view').classList.add('hidden');
@@ -1091,7 +1088,7 @@ function handleAdminCreateUser(event) {
   showToast(`Akun "${username}" untuk ${fullName} berhasil dibuat!`, 'success');
 }
 
-// 10. PROFIL SAYA (WALI: PP + BIO + ALAMAT + NO HP | ADMIN: PP ONLY)
+// 10. PROFIL SAYA
 function renderProfilSection() {
   if (!currentUser) return;
   const isAdmin = currentUser.role === 'admin';
@@ -1196,7 +1193,6 @@ function applyNewProfileAvatar(dataUrl) {
   pendingAvatarDataUrl = dataUrl;
   updateProfileAvatarPreview();
 
-  // Persist avatar immediately so both Admin (PP-only) & Wali see instant update
   if (currentUser) {
     currentUser.avatar = dataUrl;
     syncCurrentUserToStorage();
@@ -1253,7 +1249,6 @@ async function openSelfieCameraModal() {
   const video = document.getElementById('selfie-video');
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    // Fallback to native mobile camera file picker
     const camInput = document.getElementById('profil-file-camera');
     if (camInput) {
       camInput.value = '';
@@ -1272,7 +1267,6 @@ async function openSelfieCameraModal() {
     modal.classList.add('modal-open');
     if (window.lucide) lucide.createIcons();
   } catch (err) {
-    // If browser blocks webcam or no webcam on desktop, fallback to file input with capture
     const camInput = document.getElementById('profil-file-camera');
     if (camInput) {
       camInput.value = '';
@@ -1311,7 +1305,6 @@ function captureSelfieSnapshot() {
   canvas.height = 320;
   const ctx = canvas.getContext('2d');
 
-  // Mirror horizontally to match selfie preview
   ctx.translate(canvas.width, 0);
   ctx.scale(-1, 1);
   ctx.drawImage(video, startX, startY, size, size, 0, 0, 320, 320);
@@ -1545,4 +1538,3 @@ function exportToPDF() {
   doc.save(getExportFilename('pdf'));
   showToast('File PDF berhasil diunduh.', 'success');
 }
-```[cite: 23, 24]
