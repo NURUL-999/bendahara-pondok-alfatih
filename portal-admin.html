@@ -459,11 +459,11 @@
       const password = document.getElementById('admin-password').value;
 
       if (fullName.length < 2) {
-        showToast('Nama lengkap minimal 2 karakter.', 'error');
+        showToast('Nama lengkap .', 'error');
         return;
       }
       if (!/\d/.test(username) || !/[^a-zA-Z0-9]/.test(username)) {
-        showToast('Username Admin wajib mengandung angka dan simbol (contoh: galih_01).', 'error');
+        showToast('Username Admin wajib mengandung angka dan simbol (_£%!?).', 'error');
         return;
       }
       if (password.length < 6) {
