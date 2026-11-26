@@ -50,6 +50,46 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// Encode & Decode Akun untuk Tautan Lintas Perangkat (?acc=...)
+function encodeAccountPayload(userObj) {
+  const payload = {
+    u: userObj.username,
+    p: userObj.password,
+    f: userObj.fullName,
+    r: userObj.role || 'user'
+  };
+  const jsonStr = JSON.stringify(payload);
+  return btoa(unescape(encodeURIComponent(jsonStr)));
+}
+
+function decodeAccountPayload(encodedStr) {
+  try {
+    const jsonStr = decodeURIComponent(escape(atob(encodedStr)));
+    const data = JSON.parse(jsonStr);
+    if (data && data.u && data.p && data.f) {
+      return {
+        username: String(data.u).trim(),
+        password: String(data.p),
+        fullName: String(data.f).trim(),
+        role: data.r === 'admin' ? 'admin' : 'user',
+        avatar: '',
+        bio: '',
+        alamat: '',
+        noHp: ''
+      };
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+}
+
+function buildShareableAccountLink(userObj) {
+  const token = encodeAccountPayload(userObj);
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}?acc=${encodeURIComponent(token)}`;
+}
+
 // 2. INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
   loadAppData();
@@ -67,6 +107,52 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // Cek apakah dibuka melalui Link Akses Perangkat (?acc=...)
+  const urlParams = new URLSearchParams(window.location.search);
+  const accToken = urlParams.get('acc');
+  if (accToken) {
+    const importedUser = decodeAccountPayload(accToken);
+    if (importedUser) {
+      const existingIdx = registeredUsers.findIndex(
+        (u) => u.username.toLowerCase() === importedUser.username.toLowerCase()
+      );
+      if (existingIdx !== -1) {
+        registeredUsers[existingIdx] = {
+          ...registeredUsers[existingIdx],
+          password: importedUser.password,
+          fullName: importedUser.fullName,
+          role: importedUser.role
+        };
+      } else {
+        registeredUsers.push(importedUser);
+      }
+
+      if (importedUser.role === 'user') {
+        const inSantri = santriDirectory.some(
+          (s) => s.toLowerCase() === importedUser.fullName.toLowerCase()
+        );
+        if (!inSantri) {
+          santriDirectory.push(importedUser.fullName);
+        }
+      }
+
+      saveAppData();
+
+      // Bersihkan parameter URL agar rapi
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Langsung masuk ke akun tersebut di perangkat baru ini
+      const activeAccount = registeredUsers.find(
+        (u) => u.username.toLowerCase() === importedUser.username.toLowerCase()
+      );
+      currentUser = { ...activeAccount };
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(currentUser));
+      showToast(`Akun ${currentUser.fullName} berhasil diaktifkan di perangkat ini!`, 'success');
+      enterDashboard();
+      return;
+    }
+  }
 
   // Restore active session ONLY if user has not logged out
   const savedSession = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
@@ -244,7 +330,7 @@ function handleLogin(event) {
   );
 
   if (!matchedUser) {
-    showToast('Akun belum terdaftar! Silakan buat akun terlebih dahulu.', 'error');
+    showToast('Akun belum terdaftar di perangkat ini. Gunakan Link Akses dari Admin atau Create Account.', 'error');
     switchAuthView('register');
     document.getElementById('reg-username').value = usernameInput.toLowerCase().replace(/\s+/g, '_');
     document.getElementById('reg-fullname').focus();
@@ -515,6 +601,8 @@ function navigateTo(sectionName) {
     renderSantriDirectory();
   } else if (sectionName === 'hasil-laporan') {
     renderHasilLaporanSection();
+  } else if (sectionName === 'kelola-akun') {
+    renderKelolaAkunList();
   } else if (sectionName === 'profil') {
     renderProfilSection();
   }
@@ -893,7 +981,6 @@ function updateKalkulatorJumlahDisplay(baseSaldo, masukVal, keluarVal) {
   const jumlahInput = document.getElementById('input-jumlah');
   const formulaHint = document.getElementById('kalkulator-formula-hint');
 
-  // Jika Masuk & Keluar masih kosong, biarkan Jumlah kosong kembali ke semula
   if (masukVal === 0 && keluarVal === 0) {
     jumlahInput.value = '';
     jumlahInput.className =
@@ -964,7 +1051,6 @@ function handleSaveLaporan(event) {
   reportItems.unshift(newRecord);
   saveAppData();
 
-  // Kosongkan semua field form kembali ke semula & kembali ke Daftar Santri
   resetLaporanFormFields();
   backToDaftarSantriList();
   showToast(`Data transaksi ${savedSantriName} disimpan! Saldo akhir: ${formatRupiah(saldoAkhir)}`, 'success');
@@ -1113,13 +1199,13 @@ function renderHasilLaporanTable() {
   if (window.lucide) lucide.createIcons();
 }
 
-// 9. KELOLA AKUN (ADMIN BUATKAN AKUN PENGGUNA & ADMIN)
+// 9. KELOLA AKUN (ADMIN BUATKAN AKUN WALI SANTRI + LINK LINTAS PERANGKAT)
 function handleAdminCreateUser(event) {
   event.preventDefault();
   const fullName = document.getElementById('admin-new-fullname').value.trim();
   const username = document.getElementById('admin-new-username').value.trim();
   const password = document.getElementById('admin-new-password').value;
-  const role = document.getElementById('admin-new-role').value;
+  const role = 'user'; // Hanya Wali Santri
 
   if (fullName.length < 2) {
     showToast('Nama lengkap minimal 2 karakter.', 'error');
@@ -1129,15 +1215,6 @@ function handleAdminCreateUser(event) {
   if (password.length < 6) {
     showToast('Kata sandi minimal 6 karakter.', 'error');
     return;
-  }
-
-  if (role === 'admin') {
-    const hasNumber = /\d/.test(username);
-    const hasSymbol = /[^a-zA-Z0-9]/.test(username);
-    if (!hasNumber || !hasSymbol) {
-      showToast('Username Admin wajib mengandung angka dan simbol (contoh: admin_01).', 'error');
-      return;
-    }
   }
 
   const exists = registeredUsers.some(
@@ -1160,18 +1237,103 @@ function handleAdminCreateUser(event) {
   };
   registeredUsers.push(createdUser);
 
-  if (role === 'user') {
-    const alreadyInSantri = santriDirectory.some(
-      (s) => s.toLowerCase() === fullName.toLowerCase()
-    );
-    if (!alreadyInSantri) {
-      santriDirectory.push(fullName);
-    }
+  const alreadyInSantri = santriDirectory.some(
+    (s) => s.toLowerCase() === fullName.toLowerCase()
+  );
+  if (!alreadyInSantri) {
+    santriDirectory.push(fullName);
   }
 
   saveAppData();
   document.getElementById('admin-create-user-form').reset();
-  showToast(`Akun "${username}" untuk ${fullName} berhasil dibuat!`, 'success');
+  renderKelolaAkunList();
+  showToast(`Akun Wali Santri "${username}" berhasil dibuat! Salin link akses untuk perangkat lain.`, 'success');
+}
+
+function renderKelolaAkunList() {
+  const container = document.getElementById('kelola-akun-users-list');
+  if (!container) return;
+
+  const waliUsers = registeredUsers.filter((u) => u.role === 'user');
+
+  if (waliUsers.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 rounded-2xl border border-dashed border-slate-200 text-center text-xs sm:text-sm text-slate-400">
+        Belum ada akun Wali Santri yang dibuat. Silakan isi formulir di samping.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = waliUsers
+    .map((u, idx) => {
+      return `
+        <div class="p-4 rounded-2xl border border-slate-200/90 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-sm text-slate-900 truncate">${escapeHtml(u.fullName)}</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Wali Santri
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">
+              Username: <span class="font-bold text-slate-700">${escapeHtml(u.username)}</span> &bull;
+              Sandi: <span class="font-bold text-slate-700">${escapeHtml(u.password)}</span>
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" onclick="copyWaliShareLink(${idx})"
+              class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs">
+              <i data-lucide="link" class="w-3.5 h-3.5"></i>
+              <span>Salin Link Login HP</span>
+            </button>
+            <button type="button" onclick="confirmDeleteWaliAccount(${idx})"
+              class="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition" title="Hapus Akun">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function copyWaliShareLink(waliIdx) {
+  const waliUsers = registeredUsers.filter((u) => u.role === 'user');
+  const target = waliUsers[waliIdx];
+  if (!target) return;
+
+  const link = buildShareableAccountLink(target);
+  const messageText = `Assalamu'alaikum Wali Santri ${target.fullName}.\nBerikut akses aplikasi Alfatih - Bendahara:\nUsername: ${target.username}\nKata Sandi: ${target.password}\nKlik tautan ini untuk membuka & mengaktifkan akun di perangkat Anda:\n${link}`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(messageText).then(() => {
+      showToast(`Link & info login ${target.fullName} disalin! Tinggal kirim ke WA wali santri.`, 'success');
+    });
+  } else {
+    prompt('Salin tautan login berikut dan kirimkan ke Wali Santri:', link);
+  }
+}
+
+function confirmDeleteWaliAccount(waliIdx) {
+  const waliUsers = registeredUsers.filter((u) => u.role === 'user');
+  const target = waliUsers[waliIdx];
+  if (!target) return;
+
+  openConfirmDeleteModal(
+    `Hapus akun login milik "${target.fullName}" (@${target.username})?`,
+    () => {
+      registeredUsers = registeredUsers.filter(
+        (u) => u.username.toLowerCase() !== target.username.toLowerCase()
+      );
+      saveAppData();
+      renderKelolaAkunList();
+      showToast(`Akun "${target.username}" telah dihapus.`, 'success');
+    }
+  );
 }
 
 // 10. PROFIL SAYA
