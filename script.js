@@ -4,7 +4,7 @@
 
 // OPSIONAL: Isi URL Firebase Realtime Database Anda di bawah ini (contoh: "https://nama-project-default-rtdb.firebaseio.com")
 // agar akun & data keuangan tersinkron otomatis ke semua HP Wali Santri tanpa perlu link.
-const CLOUD_DB_URL = 'https://alfatih-bendahara-default-rtdb.firebaseio.com';
+const CLOUD_DB_URL = 'https://bendahara-alfatih-pnb-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 const STORAGE_KEYS = {
   USERS: 'alfatih_bendahara_users_permanent',
